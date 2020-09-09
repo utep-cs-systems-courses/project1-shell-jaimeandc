@@ -1,5 +1,5 @@
 #! /usr/bin/env python3
-import os, sys, re
+import os, sys, re, time
 
 def command_check(command):
     part = command.split()
@@ -7,17 +7,17 @@ def command_check(command):
         return False
     else:
         return True
-
+    
 while True:
     command = input("$ ")
-    if command == "exit":
+    if command == "quit":
         sys.exit(1)
     elif command == "help":
-        print("WELCOME TO HELP MORE TO COME...")
+        print("\t\tWelcome to Help\n\tFormat:<cmd><arg>\n\tQuit:'quit'")
     else:
         if command_check(command) == False:
-            os.write(1,("WRONG FORMAT TRY AGAIN").encode())
-        else:
+            os.write(1,("WRONG FORMAT").encode())
+        else: 
             rc = os.fork()
             if rc < 0:
                 os.write(2,("Fork Failed, returning %d\n" % rc).encode())
@@ -32,11 +32,13 @@ while True:
                         break
                     except FileNotFoundError:
                         pass
-                break
+    
                 os.write(1, ("Child:  Could not exec %s\n" % args[0]).encode())
                 sys.exit(1)
+                
             else:
-                print("Process Done")
+                time.sleep(1)
+                print("Child is done... Back to parent")
             
                 
             
