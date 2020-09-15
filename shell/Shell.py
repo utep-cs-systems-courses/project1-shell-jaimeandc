@@ -1,83 +1,148 @@
 #! /usr/bin/env python3
 import os, sys, re, time
     
-def pipe_check(command):
-    cmd = re.findall('[#:|]',command)
-    if cmd:
-        return True;
-    else:
-        return False;
+
+def re_in(command):
+    file_index = command.index('<') - 1
+    filename = command[file_index]
+    print(filename)
+    cmd_index = command.index('<') +1
+    args = command[cmd_index:]
+    print(args)
+
+    rc = os.fork()
+    if rc < 0:
+        os.write(2,("Fork Failed, Returning").encode())
+        sys.exit(1)
+    elif rc == 0:
+        os.close(1)
+        sys.stdout = open(filename,"w")
+        os.set_inheritable(1,True)
+        for dir in re.split(":", os.environ['PATH']):
+            program = "%s/%s" % (dir, args[0])
+            try:
+                os.execve(program,args,os.environ)
+            except FileNotFoundError:
+                pass
+        os.write(1,("Could not exec: %s\n"%args[0]).encode())
+        sys.exit(0)
     
-def redirect_check(command):
-    re_cmd = re.findall('[#:<>]',command)
-    if re_cmd:
-        return True
-    else:
-        return False
-            
-while True:
-    command = input("$ ")  ## Prompt the user to enter Command
-    if pipe_check(command) == True:## Check users command for pipe command
-        os.write(1,("YOU WANNA PIPE BUT WE CANT DO THAT JUST YET\n").encode())
     
-    elif command == "quit": ## Exit Program
-         sys.exit(0)
-         
-    elif command == "help": ## Enter help menu
-        print("\t\tWelcome to Help\n\tFormat:<cmd><args>\n\tQuit:'quit'")
+def re_out(command):
+    file_index = command.index('>') + 1
+    cmd_index = command.index('>')
+    filename = command[file_index]
+    args = command[:cmd_index]
+    rc = os.fork()
+    if rc < 0:
+        os.write(2,("Forked Failed, Returning").encode())
+        sys.exit(1)
+    elif rc == 0:
+        os.close(1)
+        sys.stdout = open(filename,"w")
+        os.set_inheritable(1,True)
 
-    elif command == "clear history":
-        open('history.txt', 'w').close()
-    elif not command:
-        print("Hey enter somthing")
+        for dir in re.split(":", os.environ['PATH']):
+            program = "%s/%s" % (dir,args[0])
+            try:
+                os.execve(program,args,os.environ)
+            except FileNotFoundError:
+                pass
+        os.write(1,("Could not exec: %s\n"%args[0]).encode())
+        sys.exit(0)
+    
+def run_command(command):
+    rc = os.fork()
+    if rc < 0:
+        os.write(2,("Fork Failed").encode())
+        sys.exit(1)
+    elif rc == 0:
+        
+        for dir in re.split(":", os.environ['PATH']):
+            program = "%s/%s" % (dir, command[0])
+            try:
+                os.execve(program, command, os.environ)
+            except FileNotFoundError:
+                pass
+        os.write(2, ("%s command not found\n" % command[0]).encode())
+        sys.exit(0)
+        
+def pipe(command):
+    pipe = command.index('|')
+    pr,pw = os.pipe()
+    for fdis in (pr,pw):
+        os.set_inheritable(fdis,True)
 
-    elif redirect_check(command) == True: ## Check command for redirect
-        rc = os.fork()          ## Create Child to Run Process
-        if rc < 0:              ## If Child Failed
-            os.write(2,("Forked Failed, Returning %d\n" % rc).encode())
-            sys.exit(1)
-        elif rc == 0:           ## If Child is successful
-            if '>' in command:  ## Check if redirect is 'Output'
-                args = command.split('> ')
-                cmd = args[0].split()
-                os.close(1)
-                os.open(args[1], os.O_WRONLY | os.O_APPEND)
-                os.set_inheritable(1, True)
-                    
-            elif '<' in command: ## Check if redirect is 'Input'
-                args = command.split(' < ')
-                cmd = args[1].split()
-                os.close(1)
-                os.open(args[0],os.O_WRONLY | os.O_APPEND)
-                os.set_inheritable(1, True)
-
+    rc = os.fork()
+    if rc < 0:
+        sys.exit(1)
+    elif rc == 0:
+        args = command[:pipe]
+        os.close(1)
+        fd = os.dup(pw)
+        os.set_inheritable(fd,True)
+        for x in (pr,pw):
+            os.close(x)
+        if os.path.isfile(args[0]):
+            try:
+                os.execve(args[0], args, os.envirion)
+            except FileNotFoundError:
+                pass
+        else:
             for dir in re.split(":", os.environ['PATH']):
-                program = "%s/%s" % (dir, cmd[0]) ##
+                program = "%s/%s" % (dir,args[0])
                 try:
-                    os.execve(program,cmd,os.environ)
+                    os.execve(program,args,os.environ)
                 except FileNotFoundError:
                     pass
-                
-            os.write(2,("Child : Error Could not exec %s\n" % cmd[0]).encode())
+            os.write(2,("Could not exec: %s\n"%args[0]).encode())
             sys.exit(0)
-        
-    else: ##User Command is Ran
-            rc = os.fork()
-            if rc < 0:
-                os.write(2,("Fork Failed, returning %d\n" % rc).encode())
-                sys.exit(1)
-            elif rc == 0:
-                args = command.split()
-                for dir in re.split(":", os.environ['PATH']):
-                    program = "%s/%s" % (dir, args[0])
-                    os.write(1,("Trying to exec %s\n" % args[0]).encode())
-                    try:
-                        os.execve(program, args, os.environ)
-                        break
-                    except FileNotFoundError:
-                        pass
-    
-                os.write(1, ("Child:  Could not exec %s\n" % args[0]).encode())
-                sys.exit(1)
+    else:
+        args = command[pipe + 1:]
+        os.close(0)
+        fd = os.dup(pr)
+        for fd in (pw,pr):
+            os.close(fd)
+        if os.path.isfile(args[0]):
+            try:
+                os.execve(args[0],args,os.environ)
+            except FileNotFoundError:
+                pass
+        else:
+            for dir in re.split(":", os.environ['PATH']):
+                program = "%s/%s" % (dir,args[0])
+                try:
+                    os.execve(program,args,os.environ)
+                except FileNotFoundError:
+                    pass
+            os.write(2,("%s command not found"%args[0]).encode())
                 
-            
+while True:
+    print("$", end=" ")
+    if 'PS1' in os.environ:
+        os.write(1, os.environ['PS1'].encode())
+    try:
+        user_cmd = input()
+    except EOFError:
+        sys.exit(1)
+    except ValueError:
+        sys.exit(1)
+    command = user_cmd.split()
+        
+    if "exit" in command: ## Exit Program
+         sys.exit(0)
+         
+    elif not command: ## Handle is command is blank
+        print("Please Enter Command")
+        
+    elif "<" in command: ## Check for 'Input' redirect
+        re_in(command)
+
+    elif ">" in command: ## Check for 'Output' redirect
+        re_out(command)
+
+    elif "|" in command: ## Checks for 'Pipe' command
+        pipe(command)
+
+    else: ##Run user (Valid) Command
+        run_command(command)
