@@ -7,6 +7,7 @@ def re_in(command):
     filename = command[file_index]
     cmd_index = command.index('<') +1
     args = command[cmd_index:]
+    pid = os.getpid()
     rc = os.fork()
     if rc < 0:
         os.write(2,("Fork Failed, Returning").encode())
@@ -15,6 +16,11 @@ def re_in(command):
         os.close(1)
         sys.stdout = open(filename,"w")
         os.set_inheritable(1,True)
+        try:
+            os.execve(command[1],command,os.environ)
+        except FileNotFoundError:
+            pass
+            
         for dir in re.split(":", os.environ['PATH']):
             program = "%s/%s" % (dir, args[0])
             try:
@@ -23,12 +29,16 @@ def re_in(command):
                 pass
         os.write(1,("Could not exec: %s\n"%args[0]).encode())
         sys.exit(0)
+    else:
+        childPid = os.wait()
+                
     
 def re_out(command):
     file_index = command.index('>') + 1
     cmd_index = command.index('>')
     filename = command[file_index]
     args = command[:cmd_index]
+    pid = os.getpid()
     rc = os.fork()
     if rc < 0:
         os.write(2,("Forked Failed, Returning").encode())
@@ -46,7 +56,8 @@ def re_out(command):
                 pass
         os.write(1,("Could not exec: %s\n"%args[0]).encode())
         sys.exit(0)
-    
+    else:
+        childPid = os.wait()
 def run_command(command):
     rc = os.fork()
     if rc < 0:
