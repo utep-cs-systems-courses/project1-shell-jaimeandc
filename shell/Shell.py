@@ -5,11 +5,8 @@ import os, sys, re, time
 def re_in(command):
     file_index = command.index('<') - 1
     filename = command[file_index]
-    print(filename)
     cmd_index = command.index('<') +1
     args = command[cmd_index:]
-    print(args)
-
     rc = os.fork()
     if rc < 0:
         os.write(2,("Fork Failed, Returning").encode())
@@ -26,7 +23,6 @@ def re_in(command):
                 pass
         os.write(1,("Could not exec: %s\n"%args[0]).encode())
         sys.exit(0)
-    
     
 def re_out(command):
     file_index = command.index('>') + 1
@@ -66,7 +62,7 @@ def run_command(command):
                 pass
         os.write(2, ("%s command not found\n" % command[0]).encode())
         sys.exit(0)
-        
+    
 def pipe(command):
     pipe = command.index('|')
     pr,pw = os.pipe()
@@ -118,31 +114,36 @@ def pipe(command):
             os.write(2,("%s command not found"%args[0]).encode())
                 
 while True:
-    print("$", end=" ")
+
     if 'PS1' in os.environ:
-        os.write(1, os.environ['PS1'].encode())
-    try:
-        user_cmd = input()
-    except EOFError:
-        sys.exit(1)
-    except ValueError:
-        sys.exit(1)
+        os.write(1, (os.environ['PS1']).encode())
+    else:
+        os.write(1,("$ ").encode())
+
+    user_cmd = input()
     command = user_cmd.split()
         
     if "exit" in command: ## Exit Program
          sys.exit(0)
          
-    elif not command: ## Handle is command is blank
-        print("Please Enter Command")
+    elif not command : ## Handle is command is blank
+        os.write(1,("Please enter a commmand\n").encode())
         
-    elif "<" in command: ## Check for 'Input' redirect
+    elif '<' in command: ## Check for 'Input' redirect
         re_in(command)
 
-    elif ">" in command: ## Check for 'Output' redirect
+    elif '>' in command: ## Check for 'Output' redirect
         re_out(command)
 
-    elif "|" in command: ## Checks for 'Pipe' command
+    elif '|' in command: ## Checks for 'Pipe' command
         pipe(command)
+
+    elif 'cd' in command: ## Checks for "Change directory" command
+        directory = command[1]
+        try:
+            os.chdir(directory)
+        except FileNotFoundError:
+            os.write(2,("File : %s not Found\n"%directory).encode())
 
     else: ##Run user (Valid) Command
         run_command(command)
