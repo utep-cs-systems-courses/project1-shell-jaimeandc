@@ -59,6 +59,7 @@ def re_out(command):
     else:
         childPid = os.wait()
 def run_command(command):
+    pid = os.getpid()
     rc = os.fork()
     if rc < 0:
         os.write(2,("Fork Failed").encode())
@@ -71,45 +72,64 @@ def run_command(command):
                 os.execve(program, command, os.environ)
             except FileNotFoundError:
                 pass
-        os.write(2, ("%s command not found\n" % command[0]).encode())
+        os.write(2, ("If '%s' is not a typo you can use command-not-found to lookup the package that contains it, like this:\n    cnf %s\n"%(command[0],command[0])).encode())
         sys.exit(0)
+    else:
+        childPid = os.wait()
+            
     
-def pipe(command):
-    pipe = command.index('|')
+def pipe(args):
+    pid = os.getpid()
+    pipe = args.index("|")
+    
     pr,pw = os.pipe()
-    for fdis in (pr,pw):
-        os.set_inheritable(fdis,True)
+    for f in (pr,pw):
+        os.set_inheritable(f,True)
 
     rc = os.fork()
+    
     if rc < 0:
+        os.write(2,("Fork failed, returning%d\n"%rc).encode())
         sys.exit(1)
+        
     elif rc == 0:
-        args = command[:pipe]
+        args = args[:pipe]
+        
         os.close(1)
+        
         fd = os.dup(pw)
         os.set_inheritable(fd,True)
-        for x in (pr,pw):
-            os.close(x)
+        for fd in (pr,pw):
+            os.close(fd)
+            
         if os.path.isfile(args[0]):
             try:
                 os.execve(args[0], args, os.envirion)
             except FileNotFoundError:
                 pass
+    
         else:
             for dir in re.split(":", os.environ['PATH']):
                 program = "%s/%s" % (dir,args[0])
                 try:
-                    os.execve(program,args,os.environ)
+                    os.execve(program, args, os.environ)
                 except FileNotFoundError:
                     pass
-            os.write(2,("Could not exec: %s\n"%args[0]).encode())
+                
+            os.write(2,("%s Could not exec\n"%args[0]).encode())
             sys.exit(0)
+            
     else:
-        args = command[pipe + 1:]
+        args = args[pipe+1:]
+        
         os.close(0)
+        
         fd = os.dup(pr)
+        os.set_inheritable(fd,True)
+        
         for fd in (pw,pr):
             os.close(fd)
+            
         if os.path.isfile(args[0]):
             try:
                 os.execve(args[0],args,os.environ)
@@ -123,38 +143,40 @@ def pipe(command):
                 except FileNotFoundError:
                     pass
             os.write(2,("%s command not found"%args[0]).encode())
-                
-while True:
+            sys.exit(0)
 
-    if 'PS1' in os.environ:
-        os.write(1, (os.environ['PS1']).encode())
-    else:
-        os.write(1,("$ ").encode())
-
-    user_cmd = input()
-    command = user_cmd.split()
-        
-    if "exit" in command: ## Exit Program
-         sys.exit(0)
-         
-    elif not command : ## Handle is command is blank
-        os.write(1,("Please enter a commmand\n").encode())
-        
-    elif '<' in command: ## Check for 'Input' redirect
+def input_handler(command):
+    command = command.split()
+    if 'exit' in command:
+        sys.exit(0)
+    elif not command:
+        pass
+    elif '<' in command:
         re_in(command)
-
-    elif '>' in command: ## Check for 'Output' redirect
+    elif '>' in command:
         re_out(command)
-
-    elif '|' in command: ## Checks for 'Pipe' command
+    elif '|' in command:
         pipe(command)
-
-    elif 'cd' in command: ## Checks for "Change directory" command
+    elif 'cd' in command:
         directory = command[1]
         try:
             os.chdir(directory)
         except FileNotFoundError:
-            os.write(2,("File : %s not Found\n"%directory).encode())
-
-    else: ##Run user (Valid) Command
+            os.write(2,("File: %s not found"%directory).encode())
+    else:
         run_command(command)
+
+while True:
+    if 'PS1' in os.environ:
+        os.write(1,(os.environ['PS1']).encode())
+    else:
+        os.write(1,("$ ").encode())
+        
+    try:
+        user_cmd = input()
+    except EOFError:
+        sys.exit(1)
+    except ValueError:
+        sys.exit(1)
+            
+    input_handler(user_cmd)
