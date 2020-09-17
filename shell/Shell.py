@@ -41,20 +41,20 @@ def re_out(command):
     pid = os.getpid()
     rc = os.fork()
     if rc < 0:
-        os.write(2,("Forked Failed, Returning").encode())
+        os.write(2, ("Forked Failed, Returning").encode())
         sys.exit(1)
     elif rc == 0:
         os.close(1)
-        sys.stdout = open(filename,"w")
+        sys.stdout = open(filename, "w")
         os.set_inheritable(1,True)
 
         for dir in re.split(":", os.environ['PATH']):
-            program = "%s/%s" % (dir,args[0])
+            program = "%s/%s" % (dir, args[0])
             try:
-                os.execve(program,args,os.environ)
+                os.execve(program, args, os.environ)
             except FileNotFoundError:
                 pass
-        os.write(1,("Could not exec: %s\n"%args[0]).encode())
+        os.write(1,("Could not exec: %s\n" % args[0]).encode())
         sys.exit(0)
     else:
         childPid = os.wait()
@@ -83,7 +83,7 @@ def pipe(args):
     pipe = args.index("|")
     
     pr,pw = os.pipe()
-    for f in (pr,pw):
+    for f in (pr, pw):
         os.set_inheritable(f,True)
         
     rc = os.fork()
@@ -99,7 +99,7 @@ def pipe(args):
         
         fd = os.dup(pw)
         os.set_inheritable(fd,True)
-        for fd in (pr,pw):
+        for fd in (pr, pw):
             os.close(fd)
             
         if os.path.isfile(args[0]):
@@ -110,7 +110,7 @@ def pipe(args):
             
         else:
             for dir in re.split(":", os.environ['PATH']):
-                program = "%s/%s" % (dir,args[0])
+                program = "%s/%s" % (dir, args[0])
                 try:
                     os.execve(program, args, os.environ)
                 except FileNotFoundError:
@@ -125,7 +125,7 @@ def pipe(args):
         fd = os.dup(pr)
         os.set_inheritable(fd,True)
         
-        for fd in (pw,pr):
+        for fd in (pw, pr):
             os.close(fd)
             
         if os.path.isfile(args[0]):
@@ -135,9 +135,9 @@ def pipe(args):
                 pass
         else:
             for dir in re.split(":", os.environ['PATH']):
-                program = "%s/%s" % (dir,args[0])
+                program = "%s/%s" % (dir, args[0])
                 try:
-                    os.execve(program,args,os.environ)
+                    os.execve(program, args, os.environ)
                 except FileNotFoundError:
                     pass
             os.write(2,("%s command not found"%args[0]).encode())
