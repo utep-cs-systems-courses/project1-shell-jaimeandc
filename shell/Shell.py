@@ -58,6 +58,7 @@ def re_out(command):
         sys.exit(0)
     else:
         childPid = os.wait()
+        
 def run_command(command):
     pid = os.getpid()
     rc = os.fork()
@@ -82,24 +83,43 @@ def pipe(args):
     pid = os.getpid()
     pipe = args.index("|")
     
-    pr,pw = os.pipe()
+    pr, pw = os.pipe()
     for f in (pr, pw):
         os.set_inheritable(f,True)
         
     rc = os.fork()
     
     if rc < 0:
-        os.write(2,("Fork failed, returning%d\n"%rc).encode())
+        os.write(2,("Fork failed, returning %d\n" % rc).encode())
         sys.exit(1)
-        
     elif rc == 0:
         args = args[:pipe]
         
         os.close(1)
         
         fd = os.dup(pw)
-        os.set_inheritable(fd,True)
+        os.set_inheritable(fd, True)
         for fd in (pr, pw):
+            os.close(fd)
+            
+        for dir in re.split(":", os.environ['PATH']):
+            program = "%s/%s" % (dir, args[0])
+            try:
+                os.execve(program, args, os.environ)
+            except FileNotFoundError:
+                pass
+        os.write(2,("%s Could not exec\n"%args[0]).encode())
+        sys.exit(1)
+            
+    else:
+        args = args[pipe+1:]
+        
+        os.close(0)
+        
+        fd = os.dup(pr)
+        os.set_inheritable(fd, True)
+        
+        for fd in (pw, pr):
             os.close(fd)
             
         if os.path.isfile(args[0]):
@@ -108,31 +128,6 @@ def pipe(args):
             except FileNotFoundError:
                 pass
             
-        else:
-            for dir in re.split(":", os.environ['PATH']):
-                program = "%s/%s" % (dir, args[0])
-                try:
-                    os.execve(program, args, os.environ)
-                except FileNotFoundError:
-                    pass
-            os.write(2,("%s Could not exec\n"%args[0]).encode())
-            sys.exit(1)
-            
-    else:
-        args = args[pipe+1:]
-        os.close(0)
-        
-        fd = os.dup(pr)
-        os.set_inheritable(fd,True)
-        
-        for fd in (pw, pr):
-            os.close(fd)
-            
-        if os.path.isfile(args[0]):
-            try:
-                os.execve(args[0],args,os.environ)
-            except FileNotFoundError:
-                pass
         else:
             for dir in re.split(":", os.environ['PATH']):
                 program = "%s/%s" % (dir, args[0])
@@ -154,7 +149,8 @@ def input_handler(command):
     elif '>' in command:
         re_out(command)
     elif '|' in command:
-        pipe(command)
+        args = command
+        pipe(args)
     elif 'cd' in command:
         directory = command[1]
         try:
