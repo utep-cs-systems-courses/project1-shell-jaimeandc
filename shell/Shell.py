@@ -85,7 +85,7 @@ def pipe(args):
     pr,pw = os.pipe()
     for f in (pr,pw):
         os.set_inheritable(f,True)
-
+        
     rc = os.fork()
     
     if rc < 0:
@@ -104,10 +104,10 @@ def pipe(args):
             
         if os.path.isfile(args[0]):
             try:
-                os.execve(args[0], args, os.envirion)
+                os.execve(args[0], args, os.environ)
             except FileNotFoundError:
                 pass
-    
+            
         else:
             for dir in re.split(":", os.environ['PATH']):
                 program = "%s/%s" % (dir,args[0])
@@ -115,13 +115,11 @@ def pipe(args):
                     os.execve(program, args, os.environ)
                 except FileNotFoundError:
                     pass
-                
             os.write(2,("%s Could not exec\n"%args[0]).encode())
-            sys.exit(0)
+            sys.exit(1)
             
     else:
         args = args[pipe+1:]
-        
         os.close(0)
         
         fd = os.dup(pr)
@@ -143,7 +141,7 @@ def pipe(args):
                 except FileNotFoundError:
                     pass
             os.write(2,("%s command not found"%args[0]).encode())
-            sys.exit(0)
+            sys.exit(1)
 
 def input_handler(command):
     command = command.split()
