@@ -38,7 +38,7 @@ def re_out(command):## Fork child and attempt to Redirect Output
         sys.exit(1)
     elif rc == 0:
         os.close(1)
-        os.open(filename, os.O_CREAT | os.O_WRONLY)
+        os.open(command[command.index('>')-1], os.O_CREAT | os.O_WRONLY)
         os.set_inheritable(1,True)
 
         for dir in re.split(":", os.environ['PATH']):
